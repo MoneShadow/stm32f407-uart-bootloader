@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "boot_image.h"
 
 /* USER CODE END Includes */
 
@@ -44,6 +45,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static boot_image_vector_table_t g_app_vector_table;
+static volatile boot_image_status_t g_app_image_status;
 
 /* USER CODE END PV */
 
@@ -89,6 +92,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  g_app_image_status = boot_image_check_vector_table(&g_app_vector_table);
 
   /* USER CODE END 2 */
 
