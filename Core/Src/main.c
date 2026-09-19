@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "boot_image.h"
+#include "boot_jump.h"
 
 /* USER CODE END Includes */
 
@@ -93,6 +94,9 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   g_app_image_status = boot_image_check_vector_table(&g_app_vector_table);
+  if (g_app_image_status == BOOT_IMAGE_STATUS_VALID) {
+    boot_jump_to_application(&g_app_vector_table);
+  }
 
   /* USER CODE END 2 */
 
