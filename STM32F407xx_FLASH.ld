@@ -6,8 +6,8 @@
 **
 **  Author		: STM32CubeMX
 **
-**  Abstract    : Linker script for STM32F407VGTx series
-**                1024Kbytes FLASH and 192Kbytes RAM
+**  Abstract    : Bootloader linker script for STM32F407VGT6
+**                32Kbytes FLASH (Sector 0-1) and 192Kbytes RAM
 **
 **                Set heap size, stack size and stack location according
 **                to application requirements.
@@ -52,13 +52,33 @@
 /* Entry Point */
 ENTRY(Reset_Handler)
 
+/*
+ * V1 internal Flash partition (end addresses are exclusive):
+ *
+ *   Bootloader  0x08000000 - 0x08008000  (32 KiB, Sector 0-1)
+ *   Application 0x08008000 - 0x08100000  (992 KiB, Sector 2-11)
+ */
+BOOT_FLASH_ORIGIN = 0x08000000;
+BOOT_FLASH_LENGTH = 32K;
+APP_FLASH_ORIGIN  = BOOT_FLASH_ORIGIN + BOOT_FLASH_LENGTH;
+DEVICE_FLASH_END  = 0x08100000;
+
 /* Specify the memory areas */
 MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
 CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 1024K
+FLASH (rx)      : ORIGIN = BOOT_FLASH_ORIGIN, LENGTH = BOOT_FLASH_LENGTH
 }
+
+/* Export the partition boundaries for the map file and future C code. */
+__boot_flash_start__ = ORIGIN(FLASH);
+__boot_flash_end__   = ORIGIN(FLASH) + LENGTH(FLASH);
+__app_flash_start__  = APP_FLASH_ORIGIN;
+__device_flash_end__ = DEVICE_FLASH_END;
+
+ASSERT(__boot_flash_end__ == __app_flash_start__,
+       "Bootloader FLASH must end exactly where Application FLASH starts")
 
 /* Highest address of the user mode stack */
 _estack = ORIGIN(RAM) + LENGTH(RAM);    /* end of RAM */

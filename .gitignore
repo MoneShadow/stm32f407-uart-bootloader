@@ -1,5 +1,6 @@
 # CMake / Ninja build trees
 /build/
+/application/build/
 /cmake-build-*/
 /out/
 

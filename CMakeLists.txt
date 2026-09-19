@@ -34,6 +34,12 @@ enable_language(C ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
+# Relink whenever the linker script changes. The script path is also passed to
+# the linker by the selected toolchain file.
+set_property(TARGET ${CMAKE_PROJECT_NAME} APPEND PROPERTY
+    LINK_DEPENDS ${CMAKE_SOURCE_DIR}/STM32F407xx_FLASH.ld
+)
+
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
