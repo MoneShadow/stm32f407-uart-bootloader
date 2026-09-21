@@ -53,11 +53,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     boot/boot_image.c
     boot/boot_jump.c
     boot/boot_flash.c
+    boot/transport/boot_uart.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/boot
+    ${CMAKE_SOURCE_DIR}/boot/transport
 )
 
 # Add project symbols (macros)
