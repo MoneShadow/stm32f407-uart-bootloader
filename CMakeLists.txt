@@ -52,6 +52,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     boot/boot_image.c
     boot/boot_jump.c
+    boot/boot_flash.c
 )
 
 # Add include paths
