@@ -53,7 +53,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     boot/boot_image.c
     boot/boot_jump.c
     boot/boot_flash.c
+    boot/boot_crc.c
+    boot/boot_protocol.c
     boot/transport/boot_uart.c
+    boot/transport/boot_uart_frame.c
 )
 
 # Add include paths
