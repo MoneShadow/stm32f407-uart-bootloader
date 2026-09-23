@@ -3,16 +3,21 @@
 #include "boot_crc.h"
 #include "boot_protocol.h"
 
+/* A5 5A | VERSION | CMD | SEQ(2字节) | LEN(2字节) | PAYLOAD(LEN字节) | CRC16(2字节) */
+
 #define BOOT_PROTOCOL_VERSION_OFFSET       2U
 #define BOOT_PROTOCOL_COMMAND_OFFSET       3U
 #define BOOT_PROTOCOL_SEQUENCE_LOW_OFFSET  4U
 #define BOOT_PROTOCOL_SEQUENCE_HIGH_OFFSET 5U
 #define BOOT_PROTOCOL_PAYLOAD_OFFSET       8U
 
+/* 对解码数据的基础判断 */
 static boot_protocol_status_t boot_protocol_validate_fields(uint8_t version, uint8_t command, uint16_t payload_length) {
+    /* 版本 */
     if (version != BOOT_PROTOCOL_VERSION) {
         return BOOT_PROTOCOL_STATUS_UNSUPPORTED_VERSION;
     }
+    /* 不同命令的palyload长度不同 比如ACK的payload是 要回复的那条接收命令 即长度是1 HELLO没有payload帧 所以长度是0 */
     switch (command) {
         case BOOT_PROTOCOL_COMMAND_HELLO:
             if (payload_length != 0) return BOOT_PROTOCOL_STATUS_INVALID_LENGTH;
@@ -45,7 +50,7 @@ boot_protocol_status_t boot_protocol_encode_frame(const boot_protocol_frame_t *f
         return BOOT_PROTOCOL_STATUS_INVALID_ARGUMENT;
     }
     *encoded_length = 0U;
-    /* 检查帧数据格式是否正确 */
+    /* 检查帧数据基础格式是否正确 */
     boot_protocol_status_t state = boot_protocol_validate_fields(frame->version, frame->command, frame->payload_length);
     if (state != BOOT_PROTOCOL_STATUS_OK) {
         return state;
@@ -114,7 +119,7 @@ boot_protocol_status_t boot_protocol_decode_frame(const uint8_t *encoded, size_t
     const uint8_t version = encoded[BOOT_PROTOCOL_VERSION_OFFSET];
     const uint8_t command = encoded[BOOT_PROTOCOL_COMMAND_OFFSET];
     const uint16_t sequence = (uint16_t)encoded[BOOT_PROTOCOL_SEQUENCE_LOW_OFFSET] | ((uint16_t)encoded[BOOT_PROTOCOL_SEQUENCE_HIGH_OFFSET] << 8U);
-    /* 检验帧头 */
+    /* 检验帧头(也叫命令帧基础格式检查 主要检查版本 和 不同命令帧的payloadlenght是否合法) */
     boot_protocol_status_t state = boot_protocol_validate_fields(version, command, payload_length);
     if (state != BOOT_PROTOCOL_STATUS_OK) {
         return state;
