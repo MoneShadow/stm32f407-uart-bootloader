@@ -172,7 +172,7 @@ static boot_start_wait_status_t boot_wait_for_start(uint32_t timeout_ms, uint32_
                                         ((uint32_t)g_decoded_frame.payload[BOOT_PROTOCOL_START_FIRMWARE_VERSION_OFFSET + 2U] << 16) |
                                         ((uint32_t)g_decoded_frame.payload[BOOT_PROTOCOL_START_FIRMWARE_VERSION_OFFSET + 3U] << 24);
             /* 检查Start帧的image_size是否合法 */
-            if (image_size0 < 8 || image_size0 > BOOT_DEVICE_FLASH_END - BOOT_APP_FLASH_START) {
+            if (image_size0 < 8 || image_size0 > BOOT_APP_FLASH_END - BOOT_APP_FLASH_START) {
                 if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_INVALID_LENGTH) != BOOT_REPLY_STATUS_OK) {
                     return BOOT_START_WAIT_STATUS_TRANSPORT_ERROR;
                 }

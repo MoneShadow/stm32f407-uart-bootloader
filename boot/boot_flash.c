@@ -7,7 +7,7 @@ typedef struct {
     uint32_t sector;
 } boot_flash_sector_info_t;
 
-/* 每个 end_address 都是不包含在当前 Sector 内的结束地址 表中只包含 APP 可以使用的 Sector 2–11 */
+/* 每个 end_address 都是不包含在当前 Sector 内的结束地址 表中只包含 APP 可以使用的 Sector 2–10， Sector 11 给meta使用了 */
 static const boot_flash_sector_info_t g_app_flash_sectors[] = {
     {0x0800C000U, FLASH_SECTOR_2},
     {0x08010000U, FLASH_SECTOR_3},
@@ -18,21 +18,20 @@ static const boot_flash_sector_info_t g_app_flash_sectors[] = {
     {0x080A0000U, FLASH_SECTOR_8},
     {0x080C0000U, FLASH_SECTOR_9},
     {0x080E0000U, FLASH_SECTOR_10},
-    {0x08100000U, FLASH_SECTOR_11},
 };
 
-/* 已确认的 APP Flash 范围：[0x08008000, 0x08100000) 前闭后开 */
+/* 已确认的 APP Flash 范围：[0x08008000, 0x080E0000) 前闭后开 */
 bool boot_flash_is_range_valid(uintptr_t address, size_t length) {
     if (length == 0U) {
         return false;
     }
-    /* 传入地址小于APP起始地址 or 大于等于设备总的FLASH地址 */
-    if (address < BOOT_APP_FLASH_START || address >= BOOT_DEVICE_FLASH_END) {
+    /* 传入地址小于APP起始地址 or 大于等于APP结束地址 */
+    if (address < BOOT_APP_FLASH_START || address >= BOOT_APP_FLASH_END) {
         return false;
     }
-    /* 这里判断传入的地址加上长度是否小于设备总的FALSH大小 */
-    /* 程序来到这里就已经确定了address是小于BOOT_DEVICE_FLASH_END 所以这里的减法是不会发生回绕问题的 相比较而言 加法就更容易发生回绕问题导致判断失误 */
-    return (length <= (BOOT_DEVICE_FLASH_END - address));
+    /* 这里判断传入的地址加上长度是否小于APP开始到结束说占用的空间大小 如果过大的话是装不进去的 */
+    /* 程序来到这里就已经确定了address是小于BOOT_APP_FLASH_END 所以这里的减法是不会发生回绕问题的 相比较而言 加法就更容易发生回绕问题导致判断失误 */
+    return (length <= (BOOT_APP_FLASH_END - address));
 }
 
 /* address -> sector */

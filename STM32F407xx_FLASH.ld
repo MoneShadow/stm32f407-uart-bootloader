@@ -61,6 +61,7 @@ ENTRY(Reset_Handler)
 BOOT_FLASH_ORIGIN = 0x08000000;
 BOOT_FLASH_LENGTH = 32K;
 APP_FLASH_ORIGIN  = BOOT_FLASH_ORIGIN + BOOT_FLASH_LENGTH;
+APP_FLASH_END  = 0x080E0000;
 DEVICE_FLASH_END  = 0x08100000;
 
 /* Specify the memory areas */
@@ -75,6 +76,9 @@ FLASH (rx)      : ORIGIN = BOOT_FLASH_ORIGIN, LENGTH = BOOT_FLASH_LENGTH
 __boot_flash_start__ = ORIGIN(FLASH);
 __boot_flash_end__   = ORIGIN(FLASH) + LENGTH(FLASH);
 __app_flash_start__  = APP_FLASH_ORIGIN;
+__app_flash_end__ = APP_FLASH_END;
+__metadata_flash_start__ = APP_FLASH_END;
+__metadata_flash_end__ = DEVICE_FLASH_END;
 __device_flash_end__ = DEVICE_FLASH_END;
 
 ASSERT(__boot_flash_end__ == __app_flash_start__,

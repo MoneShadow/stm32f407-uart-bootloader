@@ -46,7 +46,7 @@ boot_image_status_t boot_image_check_vector_table(boot_image_vector_table_t *vec
     /* 清除ResetHandler地址中最后一位bit0 这一位表示的是thumb状态 并不代表实际地址 */
     const uintptr_t reset_handler_address = (uintptr_t)(candidate.reset_handler & ~BOOT_THUMB_BIT);
     /* 检查ResteHandler地址是否合理 */
-    if (!boot_address_is_in_half_open_range(reset_handler_address, BOOT_APP_FLASH_START, BOOT_DEVICE_FLASH_END)) {
+    if (!boot_address_is_in_half_open_range(reset_handler_address, BOOT_APP_FLASH_START, BOOT_APP_FLASH_END)) {
         return BOOT_IMAGE_STATUS_INVALID_RESET_HANDLER; // ResteHandler地址非法
     }
     return BOOT_IMAGE_STATUS_VALID; // 基础检查合法
