@@ -1,6 +1,7 @@
 #include "stm32f4xx_hal.h"
 #include "boot_flash.h"
 #include "boot_memory.h"
+#include "boot_metadata.h"
 
 typedef struct {
     uintptr_t end_address;
@@ -59,7 +60,6 @@ boot_flash_status_t boot_flash_erase_sector(uintptr_t address) {
     if (!boot_flash_get_sector(address, &sector)) {
         return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
     }
-
     /* 配置FLASH结构体 */
     FLASH_EraseInitTypeDef erase_init = {0};
     erase_init.TypeErase = FLASH_TYPEERASE_SECTORS;     // 擦除范围 sector
@@ -67,19 +67,15 @@ boot_flash_status_t boot_flash_erase_sector(uintptr_t address) {
     erase_init.Sector = sector;                         // 要擦除的sector
     erase_init.NbSectors = 1U;                          // 要擦除的sector个数 从指定sector开始到依次递增
     erase_init.VoltageRange = FLASH_VOLTAGE_RANGE_3;    // FLASH工作的电压范围
-
     /* 解锁FLASH */
     if (HAL_FLASH_Unlock() != HAL_OK) {
         return BOOT_FLASH_STATUS_UNLOCK_FAILED;
     }
-
     /* 0xFFFFFFFFU 表示没有发生擦除错误的 Sector。 */
     uint32_t sector_error = 0xFFFFFFFFU;
     const HAL_StatusTypeDef erase_status = HAL_FLASHEx_Erase(&erase_init, &sector_error);
-
     /* 不管前面的操作结果 只要解锁FLASH就必须重新上锁FLASH */
     const HAL_StatusTypeDef lock_status = HAL_FLASH_Lock();
-
     /* 判断是否擦除成功 */
     if (erase_status != HAL_OK || sector_error != 0xFFFFFFFFU) {
         return BOOT_FLASH_STATUS_ERASE_FAILED;
@@ -96,46 +92,107 @@ boot_flash_status_t boot_flash_program_word(uintptr_t address, uint32_t data) {
     if (!boot_flash_is_range_valid(address, sizeof(data)) || (address & (sizeof(uint32_t) - 1U)) != 0U) {
         return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
     }
-
     /* 指针不能改 指针所指向的内容也不能改 */
     const volatile uint32_t *const flash_word = (const volatile uint32_t *)address;
-
     /* 先擦除后写入 */
     if (*flash_word != 0xFFFFFFFFU) {
         return BOOT_FLASH_STATUS_NOT_ERASED;
     }
-
     /* 解锁 */
     if (HAL_FLASH_Unlock() != HAL_OK) {
         return BOOT_FLASH_STATUS_UNLOCK_FAILED;
     }
-
     /* 写入数据 */
     const HAL_StatusTypeDef program_status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, (uint32_t)address, (uint64_t)data);
-
     /* 成功解锁后，无论编程结果如何，都必须重新锁定 */
     const HAL_StatusTypeDef lock_status = HAL_FLASH_Lock();
-
     /* 检查写入状态 */
     if (program_status != HAL_OK) {
         return BOOT_FLASH_STATUS_PROGRAM_FAILED;
     }
-
     /* 检查上锁状态 */
     if (lock_status != HAL_OK) {
         return BOOT_FLASH_STATUS_LOCK_FAILED;
     }
-
     /*
      * 清理 Flash 指令/数据缓存，确保回读和随后执行 APP 时
      * 不会使用编程前缓存的旧内容。
      */
     FLASH_FlushCaches();
-
     /* 检查数据是否被正确写入 */
     if (*flash_word != data) {
         return BOOT_FLASH_STATUS_VERIFY_FAILED;
     }
+    return BOOT_FLASH_STATUS_OK;
+}
 
+/* 只写记录中的一个 Word */
+boot_flash_status_t boot_flash_program_metadata_word(uintptr_t address, uint32_t data) {
+    /* 检查地址是否合法 是否4字节对齐 */
+    if (BOOT_METADATA_FLASH_END < BOOT_METADATA_FLASH_START ||
+        BOOT_METADATA_FLASH_END - BOOT_METADATA_FLASH_START < BOOT_METADATA_RECORD_SIZE ||
+        address < BOOT_METADATA_FLASH_START ||
+        address - BOOT_METADATA_FLASH_START > BOOT_METADATA_RECORD_SIZE - sizeof(uint32_t) ||
+        (address & (sizeof(uint32_t) - 1U)) != 0U) {
+        return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
+    }
+    /* 指针不能改 指针所指向的内容也不能改 */
+    const volatile uint32_t *const metadata_word = (const volatile uint32_t *)address;
+    /* 先擦除后写入 */
+    if (*metadata_word != 0xFFFFFFFFU) {
+        return BOOT_FLASH_STATUS_NOT_ERASED;
+    }
+    /* 解锁 */
+    if (HAL_FLASH_Unlock() != HAL_OK) {
+        return BOOT_FLASH_STATUS_UNLOCK_FAILED;
+    }
+    /* 写入数据 */
+    const HAL_StatusTypeDef program_status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, (uint32_t)address, (uint64_t)data);
+    /* 成功解锁后，无论编程结果如何，都必须重新锁定 */
+    const HAL_StatusTypeDef lock_status = HAL_FLASH_Lock();
+    /* 检查写入状态 */
+    if (program_status != HAL_OK) {
+        return BOOT_FLASH_STATUS_PROGRAM_FAILED;
+    }
+    /* 检查上锁状态 */
+    if (lock_status != HAL_OK) {
+        return BOOT_FLASH_STATUS_LOCK_FAILED;
+    }
+    /*
+     * 清理 Flash 指令/数据缓存，确保回读和随后执行 APP 时
+     * 不会使用编程前缓存的旧内容。
+     */
+    FLASH_FlushCaches();
+    /* 检查数据是否被正确写入 */
+    if (*metadata_word != data) {
+        return BOOT_FLASH_STATUS_VERIFY_FAILED;
+    }
+    return BOOT_FLASH_STATUS_OK;
+}
+
+/* 写入metadata */
+boot_flash_status_t boot_flash_program_metadata_record(const uint8_t *record, size_t length) {
+    /* 检查传入参数 */
+    if (record == NULL || length != BOOT_METADATA_RECORD_SIZE) {
+        return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
+    }
+    /* 检查要写入的7个word是否已经被擦除 */
+    const uint32_t *ptr = (const uint32_t *)BOOT_METADATA_FLASH_START;
+    for (uint8_t i = 0; i < 7; i++) {
+        if (ptr[i] != 0xFFFFFFFF) {
+            return BOOT_FLASH_STATUS_NOT_ERASED;
+        }
+    }
+    /* 小端序取出record 依次写入metadata */
+    for (uint8_t i = 0; i < 7; i++) {
+        uint32_t word = ((uint32_t)record[i * 4])
+                      | ((uint32_t)record[i * 4 + 1] << 8)
+                      | ((uint32_t)record[i * 4 + 2] << 16)
+                      | ((uint32_t)record[i * 4 + 3] << 24);
+        boot_flash_status_t state = boot_flash_program_metadata_word((uintptr_t)&ptr[i], word);
+        if (state != BOOT_FLASH_STATUS_OK) {
+            return state;
+        }
+    }
     return BOOT_FLASH_STATUS_OK;
 }

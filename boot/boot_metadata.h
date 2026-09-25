@@ -37,5 +37,6 @@ typedef struct {
 
 boot_metadata_status_t boot_metadata_validate_and_decode(const uint8_t *record, size_t record_length, size_t app_capacity, boot_metadata_info_t *info);
 boot_metadata_status_t boot_metadata_read_from_flash(boot_metadata_info_t *info);
+boot_metadata_status_t boot_metadata_encode(const boot_metadata_info_t *info, size_t app_capacity, uint8_t *record, size_t record_capacity);
 
 #endif

@@ -24,5 +24,7 @@ bool boot_flash_get_sector(uintptr_t address, uint32_t *sector);
 boot_flash_status_t boot_flash_erase_sector(uintptr_t address);
 /* 向 APP Flash 写入一个 32 位 Word，并立即回读校验 address 必须按 4 字节对齐，并且目标 Word 必须处于擦除态 */
 boot_flash_status_t boot_flash_program_word(uintptr_t address, uint32_t data);
+boot_flash_status_t boot_flash_program_metadata_word(uintptr_t address, uint32_t data);
+boot_flash_status_t boot_flash_program_metadata_record(const uint8_t *record, size_t length);
 
 #endif
