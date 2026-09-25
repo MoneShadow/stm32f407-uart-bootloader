@@ -26,7 +26,7 @@ static bool boot_initial_msp_is_valid(uint32_t initial_msp) {
     return is_aligned && (is_in_sram || is_in_ccm_ram);
 }
 
-/* APP向量表基础检查 */
+/* APP向量表基础检查并解析保存MSP和ResetHandler */
 boot_image_status_t boot_image_check_vector_table(boot_image_vector_table_t *vector_table) {
     /* 建立指向 APP 向量表的指针 */
     const volatile uint32_t *const app_vectors = (const volatile uint32_t *)BOOT_APP_FLASH_START;
@@ -68,5 +68,36 @@ boot_image_status_t boot_image_check_image(const boot_metadata_info_t *info) {
     if (crc32 != info->image_crc32) {
         return BOOT_IMAGE_STATUS_IMAGE_CRC32_MISMATCH;
     }
+    return BOOT_IMAGE_STATUS_VALID;
+}
+
+/* 检查安装好的app与metadata中的数据是否一致 */
+boot_image_status_t boot_image_check_installed(boot_image_vector_table_t *out) {
+    /* 检查传入的参数 */
+    if (out == NULL) {
+        return BOOT_IMAGE_STATUS_INVALID_ARGUMENT;
+    }
+    /* 读取metadata区获取info */
+    boot_metadata_info_t info;
+    if (boot_metadata_read_from_flash(&info) != BOOT_METADATA_STATUS_OK) {
+        return BOOT_IMAGE_STATUS_INVALID_METADATA;
+    }
+    /* 从已安装的app中检查解析获取MSP和RestHandler */
+    boot_image_vector_table_t appvector = {0};
+    boot_image_status_t state = boot_image_check_vector_table(&appvector);
+    if (state != BOOT_IMAGE_STATUS_VALID) {
+        return state;
+    }
+    /* 检查ResetHandler的实际地址确实落在声明的镜像内 */
+    uint32_t resetaddress = (uintptr_t)(appvector.reset_handler & ~BOOT_THUMB_BIT);
+    if (resetaddress - BOOT_APP_FLASH_START >= info.image_size) {
+        return BOOT_IMAGE_STATUS_INVALID_RESET_HANDLER;
+    }
+    /* 检查app与info中的信息是否匹配 */
+    state = boot_image_check_image(&info);
+    if (state != BOOT_IMAGE_STATUS_VALID) {
+        return state;
+    }
+    *out = appvector;
     return BOOT_IMAGE_STATUS_VALID;
 }
