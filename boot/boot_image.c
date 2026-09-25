@@ -1,10 +1,10 @@
 #include "boot_image.h"
+#include "boot_memory.h"
+#include "boot_crc.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#include "boot_memory.h"
 
 #define BOOT_STACK_ALIGNMENT_MASK   0x07U
 #define BOOT_THUMB_BIT              0x01U
@@ -50,4 +50,23 @@ boot_image_status_t boot_image_check_vector_table(boot_image_vector_table_t *vec
         return BOOT_IMAGE_STATUS_INVALID_RESET_HANDLER; // ResteHandler地址非法
     }
     return BOOT_IMAGE_STATUS_VALID; // 基础检查合法
+}
+
+/* 检查app */
+boot_image_status_t boot_image_check_image(const boot_metadata_info_t *info) {
+    /* 检查传入参数 */
+    if (info == NULL) {
+        return BOOT_IMAGE_STATUS_INVALID_ARGUMENT;
+    }
+    /* 检查image_size */
+    if (info->image_size < 8 || info->image_size > BOOT_APP_FLASH_END - BOOT_APP_FLASH_START) {
+        return BOOT_IMAGE_STATUS_INVALID_IMAGE_SIZE;
+    }
+    /* 比较CRC */
+    const uint8_t *const imageptr = (const uint8_t *)BOOT_APP_FLASH_START;
+    uint32_t crc32 = boot_crc32_ieee(imageptr, (size_t)info->image_size);
+    if (crc32 != info->image_crc32) {
+        return BOOT_IMAGE_STATUS_IMAGE_CRC32_MISMATCH;
+    }
+    return BOOT_IMAGE_STATUS_VALID;
 }
