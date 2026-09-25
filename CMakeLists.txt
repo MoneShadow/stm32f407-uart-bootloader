@@ -57,6 +57,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     boot/boot_protocol.c
     boot/boot.c
     boot/boot_metadata.c
+    boot/boot_metadata_flash.c
     boot/transport/boot_uart.c
     boot/transport/boot_uart_frame.c
 )

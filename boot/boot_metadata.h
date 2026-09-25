@@ -25,6 +25,7 @@ typedef enum {
     BOOT_METADATA_STATUS_INVALID_MAGIC,
     BOOT_METADATA_STATUS_INVALID_FORMAT_VERSION,
     BOOT_METADATA_STATUS_INVALID_IMAGE_SIZE,
+    BOOT_METADATA_STATUS_INVALID_METADATA_SIZE,
     BOOT_METADATA_STATUS_CRC_MISMATCH
 } boot_metadata_status_t;
 
@@ -35,5 +36,6 @@ typedef struct {
 } boot_metadata_info_t;
 
 boot_metadata_status_t boot_metadata_validate_and_decode(const uint8_t *record, size_t record_length, size_t app_capacity, boot_metadata_info_t *info);
+boot_metadata_status_t boot_metadata_read_from_flash(boot_metadata_info_t *info);
 
 #endif
