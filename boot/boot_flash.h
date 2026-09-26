@@ -26,5 +26,6 @@ boot_flash_status_t boot_flash_erase_sector(uintptr_t address);
 boot_flash_status_t boot_flash_program_word(uintptr_t address, uint32_t data);
 boot_flash_status_t boot_flash_program_metadata_word(uintptr_t address, uint32_t data);
 boot_flash_status_t boot_flash_program_metadata_record(const uint8_t *record, size_t length);
+boot_flash_status_t boot_flash_erase_metadata_sector(void);
 
 #endif

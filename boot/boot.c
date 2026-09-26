@@ -215,9 +215,9 @@ static boot_start_wait_status_t boot_wait_for_start(uint32_t timeout_ms, uint32_
  *  跳转app
  */
 noreturn void boot_run(void) {
-    /* 检查app向量表 */
+    /* 检查app向量表以及完整的app固件 */
     boot_image_vector_table_t app_vector_table;
-    const boot_image_status_t app_status = boot_image_check_vector_table(&app_vector_table);
+    const boot_image_status_t app_status = boot_image_check_installed(&app_vector_table);
     /* 有效的逻辑 等待HELLO 超时 跳转app */
     if (app_status == BOOT_IMAGE_STATUS_VALID) {
         /* 等待HELLO 等待超时就跳转APP */

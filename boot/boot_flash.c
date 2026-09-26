@@ -196,3 +196,32 @@ boot_flash_status_t boot_flash_program_metadata_record(const uint8_t *record, si
     }
     return BOOT_FLASH_STATUS_OK;
 }
+
+/* 擦除metadata区 */
+boot_flash_status_t boot_flash_erase_metadata_sector(void) {
+    /* 配置FLASH结构体 */
+    FLASH_EraseInitTypeDef erase_init = {0};
+    erase_init.TypeErase = FLASH_TYPEERASE_SECTORS;     // 擦除范围 sector
+    erase_init.Banks = FLASH_BANK_1;                    // 擦除的BANK1 这里没有作用 只有指定BANK擦除的时候此处配置才会生效
+    erase_init.Sector = FLASH_SECTOR_11;                // 要擦除的sector
+    erase_init.NbSectors = 1U;                          // 要擦除的sector个数 从指定sector开始到依次递增
+    erase_init.VoltageRange = FLASH_VOLTAGE_RANGE_3;    // FLASH工作的电压范围
+    /* 解锁FLASH */
+    if (HAL_FLASH_Unlock() != HAL_OK) {
+        return BOOT_FLASH_STATUS_UNLOCK_FAILED;
+    }
+    /* 0xFFFFFFFFU 表示没有发生擦除错误的 Sector。 */
+    uint32_t sector_error = 0xFFFFFFFFU;
+    const HAL_StatusTypeDef erase_status = HAL_FLASHEx_Erase(&erase_init, &sector_error);
+    /* 不管前面的操作结果 只要解锁FLASH就必须重新上锁FLASH */
+    const HAL_StatusTypeDef lock_status = HAL_FLASH_Lock();
+    /* 判断是否擦除成功 */
+    if (erase_status != HAL_OK || sector_error != 0xFFFFFFFFU) {
+        return BOOT_FLASH_STATUS_ERASE_FAILED;
+    }
+    /* 判断是否成功上锁 */
+    if (lock_status != HAL_OK) {
+        return BOOT_FLASH_STATUS_LOCK_FAILED;
+    }
+    return BOOT_FLASH_STATUS_OK;
+}
