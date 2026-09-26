@@ -34,6 +34,12 @@ typedef enum {
 } boot_data_wait_status_t;
 
 typedef enum {
+    BOOT_END_WAIT_STATUS_RECEIVED = 0,
+    BOOT_END_WAIT_STATUS_TIMEOUT,
+    BOOT_END_WAIT_STATUS_TRANSPORT_ERROR
+} boot_end_wait_status_t;
+
+typedef enum {
     BOOT_REPLY_STATUS_OK = 0,
     BOOT_REPLY_STATUS_ENCODE_ERROR,
     BOOT_REPLY_STATUS_TRANSPORT_ERROR
@@ -274,6 +280,60 @@ static boot_data_wait_status_t boot_wait_for_data(uint32_t timeout_ms, uint16_t 
     }
 }
 
+/* 等待END帧 */
+static boot_end_wait_status_t boot_wait_for_end(uint32_t timeout_ms, uint16_t expected_seq) {
+    /* 记录开始帧 */
+    uint32_t start_tick = HAL_GetTick();
+    while (1) {
+        /* 记录已占用时长 */
+        uint32_t elapsed = HAL_GetTick() - start_tick;
+        if (elapsed >= timeout_ms) {
+            return BOOT_END_WAIT_STATUS_TIMEOUT;
+        }
+        /* 用剩余时间去接收信息流 */
+        uint32_t remaining = timeout_ms - elapsed;
+        boot_uart_frame_status_t frame_state = boot_uart_frame_receive(g_encoded_frame, sizeof(g_encoded_frame), &encoded_length, remaining);
+        if (frame_state != BOOT_UART_FRAME_STATUS_OK) {
+            /* 超时返回 */
+            if (frame_state == BOOT_UART_FRAME_STATUS_TIMEOUT) {
+                return BOOT_END_WAIT_STATUS_TIMEOUT;
+            }
+            /* 帧头声明的长度非法 忽略 继续循环 */
+            if (frame_state == BOOT_UART_FRAME_STATUS_INVALID_LENGTH) {
+                continue;
+            }
+            /* 其余错误直接返回 */
+            return BOOT_END_WAIT_STATUS_TRANSPORT_ERROR;
+        }
+        /* 接收到有效命令之后开始解码 */
+        boot_protocol_status_t protocol_state = boot_protocol_decode_frame(g_encoded_frame, encoded_length, &g_decoded_frame);
+        /* 解码失败 忽略 继续循环 */
+        if (protocol_state != BOOT_PROTOCOL_STATUS_OK) {
+            continue;
+        }
+        /* 检查命令 */
+        /* 接收到非END命令返回NACK并忽略 然后继续循环 */
+        if (g_decoded_frame.command != BOOT_PROTOCOL_COMMAND_END) {
+            if (g_decoded_frame.command == BOOT_PROTOCOL_COMMAND_ACK ||
+                g_decoded_frame.command == BOOT_PROTOCOL_COMMAND_NACK) {
+                continue;
+            }
+            if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_INVALID_STATE) != BOOT_REPLY_STATUS_OK) {
+                return BOOT_END_WAIT_STATUS_TRANSPORT_ERROR;
+            }
+            continue;
+        }
+        /* 判断SEQ */
+        if (g_decoded_frame.sequence != expected_seq) {
+            if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_UNEXPECTED_SEQUENCE) != BOOT_REPLY_STATUS_OK) {
+                return BOOT_END_WAIT_STATUS_TRANSPORT_ERROR;
+            }
+            continue;
+        }
+        return BOOT_END_WAIT_STATUS_RECEIVED;
+    }
+}
+
 /*
  *  该函数实现bootloader的主要功能
  *  检查APP是否有效
@@ -385,6 +445,14 @@ noreturn void boot_run(void) {
             expected_seq++;
         }
     }
-    while (1) {
+    if (boot_wait_for_end(5000U, expected_seq) != BOOT_END_WAIT_STATUS_RECEIVED) {
+        /* 等待超时或错误 */
+        while (1) {
+        }
+    }
+    /* 接收成功 */
+    else {
+        while (1) {
+        }
     }
 }
