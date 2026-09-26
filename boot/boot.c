@@ -28,6 +28,12 @@ typedef enum {
 } boot_start_wait_status_t;
 
 typedef enum {
+    BOOT_DATA_WAIT_STATUS_RECEIVED = 0,
+    BOOT_DATA_WAIT_STATUS_TIMEOUT,
+    BOOT_DATA_WAIT_STATUS_TRANSPORT_ERROR
+} boot_data_wait_status_t;
+
+typedef enum {
     BOOT_REPLY_STATUS_OK = 0,
     BOOT_REPLY_STATUS_ENCODE_ERROR,
     BOOT_REPLY_STATUS_TRANSPORT_ERROR
@@ -207,6 +213,67 @@ static boot_start_wait_status_t boot_wait_for_start(uint32_t timeout_ms, uint32_
     }
 }
 
+/* 等待DATA帧 */
+static boot_data_wait_status_t boot_wait_for_data(uint32_t timeout_ms, uint16_t expected_seq, uint32_t remainder_bytes) {
+    /* 记录开始帧 */
+    uint32_t start_tick = HAL_GetTick();
+    while (1) {
+        /* 记录已占用时长 */
+        uint32_t elapsed = HAL_GetTick() - start_tick;
+        if (elapsed >= timeout_ms) {
+            return BOOT_DATA_WAIT_STATUS_TIMEOUT;
+        }
+        /* 用剩余时间去接收信息流 */
+        uint32_t remaining = timeout_ms - elapsed;
+        boot_uart_frame_status_t frame_state = boot_uart_frame_receive(g_encoded_frame, sizeof(g_encoded_frame), &encoded_length, remaining);
+        if (frame_state != BOOT_UART_FRAME_STATUS_OK) {
+            /* 超时返回 */
+            if (frame_state == BOOT_UART_FRAME_STATUS_TIMEOUT) {
+                return BOOT_DATA_WAIT_STATUS_TIMEOUT;
+            }
+            /* 帧头声明的长度非法 忽略 继续循环 */
+            if (frame_state == BOOT_UART_FRAME_STATUS_INVALID_LENGTH) {
+                continue;
+            }
+            /* 其余错误直接返回 */
+            return BOOT_DATA_WAIT_STATUS_TRANSPORT_ERROR;
+        }
+        /* 接收到有效命令之后开始解码 */
+        boot_protocol_status_t protocol_state = boot_protocol_decode_frame(g_encoded_frame, encoded_length, &g_decoded_frame);
+        /* 解码失败 忽略 继续循环 */
+        if (protocol_state != BOOT_PROTOCOL_STATUS_OK) {
+            continue;
+        }
+        /* 检查命令 */
+        /* 接收到非DATA命令返回NACK并忽略 然后继续循环 */
+        if (g_decoded_frame.command != BOOT_PROTOCOL_COMMAND_DATA) {
+            if (g_decoded_frame.command == BOOT_PROTOCOL_COMMAND_ACK ||
+                g_decoded_frame.command == BOOT_PROTOCOL_COMMAND_NACK) {
+                continue;
+            }
+            if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_INVALID_STATE) != BOOT_REPLY_STATUS_OK) {
+                return BOOT_DATA_WAIT_STATUS_TRANSPORT_ERROR;
+            }
+            continue;
+        }
+        /* 判断SEQ */
+        if (g_decoded_frame.sequence != expected_seq) {
+            if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_UNEXPECTED_SEQUENCE) != BOOT_REPLY_STATUS_OK) {
+                return BOOT_DATA_WAIT_STATUS_TRANSPORT_ERROR;
+            }
+            continue;
+        }
+        /* 判断image_size */
+        if (g_decoded_frame.payload_length > remainder_bytes) {
+            if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_INVALID_LENGTH) != BOOT_REPLY_STATUS_OK) {
+                return BOOT_DATA_WAIT_STATUS_TRANSPORT_ERROR;
+            }
+            continue;
+        }
+        return BOOT_DATA_WAIT_STATUS_RECEIVED;
+    }
+}
+
 /*
  *  该函数实现bootloader的主要功能
  *  检查APP是否有效
@@ -218,43 +285,48 @@ noreturn void boot_run(void) {
     /* 检查app向量表以及完整的app固件 */
     boot_image_vector_table_t app_vector_table;
     const boot_image_status_t app_status = boot_image_check_installed(&app_vector_table);
-    /* 有效的逻辑 等待HELLO 超时 跳转app */
-    if (app_status == BOOT_IMAGE_STATUS_VALID) {
-        /* 等待HELLO 等待超时就跳转APP */
+    /* 等待HELLO帧 */
+    while (1) {
         if (boot_wait_for_hello(BOOT_STARTUP_HELLO_TIMEOUT_MS) != BOOT_HELLO_WAIT_STATUS_RECEIVED) {
-            boot_jump_to_application(&app_vector_table);
-        }
-        /* 发送ACK 发送失败就跳转APP */
-        if (boot_send_ack(g_decoded_frame.command, g_decoded_frame.sequence) != BOOT_REPLY_STATUS_OK) {
-            boot_jump_to_application(&app_vector_table);
-        }
-    }
-    /* 无效的逻辑 等待HELLO(一直等待 因为此时app向量表中的数据是不正确的 根本就没法跳转app层) */
-    else {
-        while (1) {
-            /* 等待HELLO 直到收到HELLO命令 */
-            if (boot_wait_for_hello(BOOT_STARTUP_HELLO_TIMEOUT_MS) != BOOT_HELLO_WAIT_STATUS_RECEIVED) {
+            /* 等待超时 APP有效的逻辑 */
+            if (app_status == BOOT_IMAGE_STATUS_VALID) {
+                /* 跳转APP */
+                boot_jump_to_application(&app_vector_table);
+            }
+            /* APP无效的逻辑 */
+            else {
                 continue;
             }
-            /* 每收到一次HELLO 只尝试发送一次ACK 失败后重新等待新的HELLO */
-            if (boot_send_ack(g_decoded_frame.command, g_decoded_frame.sequence) == BOOT_REPLY_STATUS_OK) {
+        }
+        else {
+            /* 发送ACK */
+            if (boot_send_ack(g_decoded_frame.command, g_decoded_frame.sequence) != BOOT_REPLY_STATUS_OK) {
+                /* ACK发送失败 APP有效的逻辑 */
+                if (app_status == BOOT_IMAGE_STATUS_VALID) {
+                    /* 跳转APP */
+                    boot_jump_to_application(&app_vector_table);
+                }
+                /* APP无效的逻辑 */
+                else {
+                    continue;
+                }
+            }
+            /* 生路 成功接收HELLO帧并且ACK发送成功 */
+            else {
                 break;
             }
         }
     }
-    /*
-     * 已收到有效 HELLO。
-     * 下一阶段会在这里进入升级会话。
-     */
+    /* 已收到有效 HELLO */
     uint32_t image_size, image_crc32, firmware_version;
+    /* 等待Start帧 */
     while (1) {
-        /* 判断是否等到Start帧 */
         if (boot_wait_for_start(BOOT_WAIT_START_TIMEOUT_MS, &image_size, &image_crc32, &firmware_version) != BOOT_START_WAIT_STATUS_RECEIVED) {
-            /* 超时且app有效 跳转app */
+            /* 等待超时 APP有效的逻辑 */
             if (app_status == BOOT_IMAGE_STATUS_VALID) {
                 boot_jump_to_application(&app_vector_table);
             }
-            /* 无效 接着等待HELLO */
+            /* APP无效的逻辑 */
             else {
                 while (1) {
                     /* 等待HELLO 直到收到HELLO命令 */
@@ -269,8 +341,50 @@ noreturn void boot_run(void) {
             }
         }
         else {
+            /* 发送ACK */
+            if (boot_send_ack(g_decoded_frame.command, g_decoded_frame.sequence) != BOOT_REPLY_STATUS_OK) {
+                /* ACK发送失败 APP有效的逻辑 */
+                if (app_status == BOOT_IMAGE_STATUS_VALID) {
+                    /* 跳转APP */
+                    boot_jump_to_application(&app_vector_table);
+                }
+                /* APP无效的逻辑 */
+                else {
+                    while (1) {
+                        /* 等待HELLO 直到收到HELLO命令 */
+                        if (boot_wait_for_hello(BOOT_STARTUP_HELLO_TIMEOUT_MS) != BOOT_HELLO_WAIT_STATUS_RECEIVED) {
+                            continue;
+                        }
+                        /* 每收到一次HELLO 只尝试发送一次ACK 失败后重新等待新的HELLO */
+                        if (boot_send_ack(g_decoded_frame.command, g_decoded_frame.sequence) == BOOT_REPLY_STATUS_OK) {
+                            break;
+                        }
+                    }
+                }
+            }
+            /* 生路 成功接收到start并且发送ACK成功 */
+            else {
+                break;
+            }
+        }
+    }
+    /* 等待DATA帧 */
+    uint16_t expected_seq = 2U;
+    uint32_t receiced_bytes = 0, remainder_bytes = image_size;
+    while (receiced_bytes != image_size) {
+        if (boot_wait_for_data(5000U, expected_seq, remainder_bytes) != BOOT_DATA_WAIT_STATUS_RECEIVED) {
+            /* 等待超时或错误 */
             while (1) {
             }
         }
+        /* 成功接收一包数据 */
+        else {
+            /* 更新已经收到的字节长度 更新剩余字节长度 命令序号递增 */
+            receiced_bytes += g_decoded_frame.payload_length;
+            remainder_bytes = image_size - receiced_bytes;
+            expected_seq++;
+        }
+    }
+    while (1) {
     }
 }
