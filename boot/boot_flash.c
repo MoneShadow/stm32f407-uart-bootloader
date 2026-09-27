@@ -290,3 +290,22 @@ boot_flash_status_t boot_flash_erase_app_image(size_t image_size) {
     } while (g_app_flash_sectors[i - 1U].end_address < image_end);
     return BOOT_FLASH_STATUS_OK;
 }
+
+/* 接收start帧之后 发送startACK前 开始擦除元数据和App固件 */
+boot_flash_status_t boot_flash_prepare_app_image(size_t image_size) {
+    /* 检查固件长度是否合法(小于 8 字节或超出 APP 分区的长度均为非法) */
+    if (image_size < 8U || !boot_flash_is_range_valid(BOOT_APP_FLASH_START, image_size)) {
+        return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
+    }
+    /* 开始擦除metadata */
+    boot_flash_status_t state = boot_flash_erase_metadata_sector();
+    if (state != BOOT_FLASH_STATUS_OK) {
+        return state;
+    }
+    /* 开始擦除app固件 */
+    state = boot_flash_erase_app_image(image_size);
+    if (state != BOOT_FLASH_STATUS_OK) {
+        return state;
+    }
+    return BOOT_FLASH_STATUS_OK;
+}

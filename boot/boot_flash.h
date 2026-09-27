@@ -25,5 +25,6 @@ boot_flash_status_t boot_flash_program_metadata_record(const uint8_t *record, si
 boot_flash_status_t boot_flash_erase_metadata_sector(void);
 boot_flash_status_t boot_flash_program_bytes(uintptr_t address, const uint8_t *data, size_t length);
 boot_flash_status_t boot_flash_erase_app_image(size_t image_size);
+boot_flash_status_t boot_flash_prepare_app_image(size_t image_size);
 
 #endif

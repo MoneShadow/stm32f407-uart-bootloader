@@ -400,32 +400,12 @@ noreturn void boot_run(void) {
                 }
             }
         }
+        /* 发送ACK 失败直接软重启 不能依据旧的status状态来跳转app 因为在接收到合法start之后元数据就要失效了 */
         else {
-            /* 发送ACK */
             if (boot_send_ack(g_decoded_frame.command, g_decoded_frame.sequence) != BOOT_REPLY_STATUS_OK) {
-                /* ACK发送失败 APP有效的逻辑 */
-                if (app_status == BOOT_IMAGE_STATUS_VALID) {
-                    /* 跳转APP */
-                    boot_jump_to_application(&app_vector_table);
-                }
-                /* APP无效的逻辑 */
-                else {
-                    while (1) {
-                        /* 等待HELLO 直到收到HELLO命令 */
-                        if (boot_wait_for_hello(BOOT_STARTUP_HELLO_TIMEOUT_MS) != BOOT_HELLO_WAIT_STATUS_RECEIVED) {
-                            continue;
-                        }
-                        /* 每收到一次HELLO 只尝试发送一次ACK 失败后重新等待新的HELLO */
-                        if (boot_send_ack(g_decoded_frame.command, g_decoded_frame.sequence) == BOOT_REPLY_STATUS_OK) {
-                            break;
-                        }
-                    }
-                }
+                NVIC_SystemReset();
             }
-            /* 生路 成功接收到start并且发送ACK成功 */
-            else {
-                break;
-            }
+            break;
         }
     }
     /* 等待DATA帧 */
