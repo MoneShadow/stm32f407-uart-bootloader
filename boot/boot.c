@@ -434,8 +434,7 @@ noreturn void boot_run(void) {
     while (receiced_bytes != image_size) {
         if (boot_wait_for_data(5000U, expected_seq, remainder_bytes) != BOOT_DATA_WAIT_STATUS_RECEIVED) {
             /* 等待超时或错误 */
-            while (1) {
-            }
+            NVIC_SystemReset();
         }
         /* 成功接收一包数据 */
         else {
@@ -445,10 +444,10 @@ noreturn void boot_run(void) {
             expected_seq++;
         }
     }
+    /* 等待END帧 */
     if (boot_wait_for_end(5000U, expected_seq) != BOOT_END_WAIT_STATUS_RECEIVED) {
         /* 等待超时或错误 */
-        while (1) {
-        }
+        NVIC_SystemReset();
     }
     /* 接收成功 */
     else {
