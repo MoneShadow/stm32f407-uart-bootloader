@@ -225,3 +225,46 @@ boot_flash_status_t boot_flash_erase_metadata_sector(void) {
     }
     return BOOT_FLASH_STATUS_OK;
 }
+
+/* 将接收解析来的数据拆成word */
+boot_flash_status_t boot_flash_program_bytes(uintptr_t address, const uint8_t *data, size_t length) {
+    /* 入参检查 */
+    if (data == NULL) {
+        return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
+    }
+    /* 检查地址是否四字节对齐 检查长度是否不为0 */
+    if (address % sizeof(uint32_t) != 0 || length == 0) {
+        return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
+    }
+    /* 检查地址加上数据长度(含补齐字节)后是否还在app分区 */
+    /* 验证原始长度 */
+    if (!boot_flash_is_range_valid(address, length)) {
+        return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
+    }
+    const size_t word_size = sizeof(uint32_t);
+    const size_t remainder = length % word_size;
+    const size_t padding = remainder ? word_size - remainder : 0U;
+    const size_t programmed_length = length + padding;
+    /* 验证补齐后的长度 */
+    if (!boot_flash_is_range_valid(address, programmed_length)) {
+        return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
+    }
+    /* 逐word写入 */
+    for (size_t offset = 0U; offset < programmed_length; offset += word_size) {
+        uint32_t value_word = 0U;
+        /* 每个word逐字节读取 */
+        for (size_t i = 0U; i < word_size; i++) {
+            const size_t position = offset + i;
+            /* 发现空字节(取字节位置超过实际传入的长度)就用0xFF替代 */
+            const uint8_t value_byte = position < length ? data[position] : 0xFFU;
+            value_word |= (uint32_t)value_byte << (8U * i);
+        }
+        /* 写入 */
+        boot_flash_status_t status = boot_flash_program_word(address + offset, value_word);
+        if (status != BOOT_FLASH_STATUS_OK) {
+            return status;
+        }
+    }
+    /* 完工 */
+    return BOOT_FLASH_STATUS_OK;
+}

@@ -269,8 +269,8 @@ static boot_data_wait_status_t boot_wait_for_data(uint32_t timeout_ms, uint16_t 
             }
             continue;
         }
-        /* 判断image_size */
-        if (g_decoded_frame.payload_length > remainder_bytes) {
+        /* 判断image_size 写入字节不能超过剩余字节数 并且非最后一包的data数据必须四字节对齐 */
+        if ((g_decoded_frame.payload_length > remainder_bytes) || ((g_decoded_frame.payload_length < remainder_bytes) && (g_decoded_frame.payload_length % sizeof(uint32_t)) != 0U)) {
             if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_INVALID_LENGTH) != BOOT_REPLY_STATUS_OK) {
                 return BOOT_DATA_WAIT_STATUS_TRANSPORT_ERROR;
             }
