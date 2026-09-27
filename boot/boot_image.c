@@ -28,13 +28,14 @@ static bool boot_initial_msp_is_valid(uint32_t initial_msp) {
 
 /* APP向量表基础检查并解析保存MSP和ResetHandler */
 boot_image_status_t boot_image_check_vector_table(boot_image_vector_table_t *vector_table) {
+    /* 检查入参 */
+    if (vector_table == NULL) {
+        return BOOT_IMAGE_STATUS_INVALID_ARGUMENT;
+    }
     /* 建立指向 APP 向量表的指针 */
     const volatile uint32_t *const app_vectors = (const volatile uint32_t *)BOOT_APP_FLASH_START;
     /* 取出msp和resethandler */
     const boot_image_vector_table_t candidate = {.initial_msp = app_vectors[0], .reset_handler = app_vectors[1]};
-    if (vector_table != NULL) {
-        *vector_table = candidate;
-    }
     /* 检查MSP地址是否合理 */
     if (!boot_initial_msp_is_valid(candidate.initial_msp)) {
         return BOOT_IMAGE_STATUS_INVALID_MSP;   // MSP非法
@@ -49,6 +50,8 @@ boot_image_status_t boot_image_check_vector_table(boot_image_vector_table_t *vec
     if (!boot_address_is_in_half_open_range(reset_handler_address, BOOT_APP_FLASH_START, BOOT_APP_FLASH_END)) {
         return BOOT_IMAGE_STATUS_INVALID_RESET_HANDLER; // ResteHandler地址非法
     }
+    /* 数据出参 */
+    *vector_table = candidate;
     return BOOT_IMAGE_STATUS_VALID; // 基础检查合法
 }
 
