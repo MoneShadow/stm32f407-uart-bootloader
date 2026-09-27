@@ -1,5 +1,7 @@
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "stm32f4xx_hal.h"
 
@@ -30,12 +32,14 @@ typedef enum {
 typedef enum {
     BOOT_DATA_WAIT_STATUS_RECEIVED = 0,
     BOOT_DATA_WAIT_STATUS_TIMEOUT,
+    BOOT_DATA_WAIT_STATUS_DUPLICATE,
     BOOT_DATA_WAIT_STATUS_TRANSPORT_ERROR
 } boot_data_wait_status_t;
 
 typedef enum {
     BOOT_END_WAIT_STATUS_RECEIVED = 0,
     BOOT_END_WAIT_STATUS_TIMEOUT,
+    BOOT_END_WAIT_STATUS_DATA_DUPLICATE,
     BOOT_END_WAIT_STATUS_TRANSPORT_ERROR
 } boot_end_wait_status_t;
 
@@ -44,6 +48,13 @@ typedef enum {
     BOOT_REPLY_STATUS_ENCODE_ERROR,
     BOOT_REPLY_STATUS_TRANSPORT_ERROR
 } boot_reply_status_t;
+
+typedef struct {
+    bool valid;
+    uint16_t sequence;
+    uint16_t payload_length;
+    uint8_t payload[BOOT_PROTOCOL_MAX_PAYLOAD_SIZE];
+} boot_last_data_t;
 
 static uint8_t g_encoded_frame[BOOT_PROTOCOL_MAX_FRAME_SIZE];
 static boot_protocol_frame_t g_decoded_frame;
@@ -220,7 +231,7 @@ static boot_start_wait_status_t boot_wait_for_start(uint32_t timeout_ms, uint32_
 }
 
 /* 等待DATA帧 */
-static boot_data_wait_status_t boot_wait_for_data(uint32_t timeout_ms, uint16_t expected_seq, uint32_t remainder_bytes) {
+static boot_data_wait_status_t boot_wait_for_data(uint32_t timeout_ms, uint16_t expected_seq, uint32_t remainder_bytes, const boot_last_data_t *last_data) {
     /* 记录开始帧 */
     uint32_t start_tick = HAL_GetTick();
     while (1) {
@@ -264,6 +275,14 @@ static boot_data_wait_status_t boot_wait_for_data(uint32_t timeout_ms, uint16_t 
         }
         /* 判断SEQ */
         if (g_decoded_frame.sequence != expected_seq) {
+            /* 上一包原样重传：仅识别，不再次推进接收进度 */
+            if (last_data->valid &&
+                g_decoded_frame.sequence == last_data->sequence &&
+                g_decoded_frame.payload_length == last_data->payload_length &&
+                memcmp(g_decoded_frame.payload, last_data->payload, last_data->payload_length) == 0) {
+                return BOOT_DATA_WAIT_STATUS_DUPLICATE;
+            }
+            /* 其他错误序号（包括同序号但内容不同）一律拒绝 */
             if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_UNEXPECTED_SEQUENCE) != BOOT_REPLY_STATUS_OK) {
                 return BOOT_DATA_WAIT_STATUS_TRANSPORT_ERROR;
             }
@@ -281,7 +300,7 @@ static boot_data_wait_status_t boot_wait_for_data(uint32_t timeout_ms, uint16_t 
 }
 
 /* 等待END帧 */
-static boot_end_wait_status_t boot_wait_for_end(uint32_t timeout_ms, uint16_t expected_seq) {
+static boot_end_wait_status_t boot_wait_for_end(uint32_t timeout_ms, uint16_t expected_seq, const boot_last_data_t *last_data) {
     /* 记录开始帧 */
     uint32_t start_tick = HAL_GetTick();
     while (1) {
@@ -316,6 +335,20 @@ static boot_end_wait_status_t boot_wait_for_end(uint32_t timeout_ms, uint16_t ex
         if (g_decoded_frame.command != BOOT_PROTOCOL_COMMAND_END) {
             if (g_decoded_frame.command == BOOT_PROTOCOL_COMMAND_ACK ||
                 g_decoded_frame.command == BOOT_PROTOCOL_COMMAND_NACK) {
+                continue;
+            }
+            /* 如果接收到最后一包DATA后 PC没有收到ACK 那么PC就会一直尝试发送DATA包 直到收到最后一包的ACK */
+            if (g_decoded_frame.command == BOOT_PROTOCOL_COMMAND_DATA) {
+                /* 只有最后一包才符合条件 其余DATA包均视为非法 */
+                if (last_data->valid &&
+                    g_decoded_frame.sequence == last_data->sequence &&
+                    g_decoded_frame.payload_length == last_data->payload_length &&
+                    memcmp(g_decoded_frame.payload, last_data->payload, last_data->payload_length) == 0) {
+                    return BOOT_END_WAIT_STATUS_DATA_DUPLICATE;
+                }
+                if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_UNEXPECTED_SEQUENCE) != BOOT_REPLY_STATUS_OK) {
+                    return BOOT_END_WAIT_STATUS_TRANSPORT_ERROR;
+                }
                 continue;
             }
             if (boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_INVALID_STATE) != BOOT_REPLY_STATUS_OK) {
@@ -409,29 +442,44 @@ noreturn void boot_run(void) {
         }
     }
     /* 等待DATA帧 */
+    boot_last_data_t last_data = {0};
     uint16_t expected_seq = 2U;
     uint32_t receiced_bytes = 0, remainder_bytes = image_size;
     while (receiced_bytes != image_size) {
-        if (boot_wait_for_data(5000U, expected_seq, remainder_bytes) != BOOT_DATA_WAIT_STATUS_RECEIVED) {
+        boot_data_wait_status_t data_status = boot_wait_for_data(5000U, expected_seq, remainder_bytes, &last_data);
+        if (data_status == BOOT_DATA_WAIT_STATUS_DUPLICATE) {
+            /* 发现重复包 继续等待下一包 */
+            continue;
+        }
+        if (data_status != BOOT_DATA_WAIT_STATUS_RECEIVED) {
             /* 等待超时或错误 */
             NVIC_SystemReset();
         }
-        /* 成功接收一包数据 */
-        else {
-            /* 更新已经收到的字节长度 更新剩余字节长度 命令序号递增 */
-            receiced_bytes += g_decoded_frame.payload_length;
-            remainder_bytes = image_size - receiced_bytes;
-            expected_seq++;
-        }
+        /* 记录上一包 */
+        last_data.sequence = g_decoded_frame.sequence;
+        last_data.payload_length = g_decoded_frame.payload_length;
+        memcpy(last_data.payload, g_decoded_frame.payload, last_data.payload_length);
+        last_data.valid = true; // 用于表示是否已经接收到一包数据 因为第一包数据没有last_data
+        /* 只有新包才能推进接收进度。 */
+        receiced_bytes += g_decoded_frame.payload_length;
+        remainder_bytes = image_size - receiced_bytes;
+        expected_seq++;
     }
     /* 等待END帧 */
-    if (boot_wait_for_end(5000U, expected_seq) != BOOT_END_WAIT_STATUS_RECEIVED) {
-        /* 等待超时或错误 */
-        NVIC_SystemReset();
-    }
-    /* 接收成功 */
-    else {
-        while (1) {
+    while (1) {
+        boot_end_wait_status_t end_status = boot_wait_for_end(5000U, expected_seq, &last_data);
+        if (end_status != BOOT_END_WAIT_STATUS_RECEIVED) {
+            if (end_status == BOOT_END_WAIT_STATUS_DATA_DUPLICATE) {
+                /* 最后一包 DATA 原样重传，不推进状态，继续等待 END */
+                continue;
+            }
+            /* 等待超时或错误 */
+            NVIC_SystemReset();
+        }
+        /* 接收成功 */
+        else {
+            while (1) {
+            }
         }
     }
 }
