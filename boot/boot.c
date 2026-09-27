@@ -12,6 +12,8 @@
 #include "boot_uart_frame.h"
 #include "boot_uart.h"
 #include "boot_memory.h"
+#include "boot_flash.h"
+#include "boot_metadata.h"
 
 #define BOOT_STARTUP_HELLO_TIMEOUT_MS 1000U
 #define BOOT_WAIT_START_TIMEOUT_MS    5000U
@@ -435,6 +437,13 @@ noreturn void boot_run(void) {
         }
         /* 发送ACK 失败直接软重启 不能依据旧的status状态来跳转app 因为在接收到合法start之后元数据就要失效了 */
         else {
+            /* 接收到合法的Start帧 开始写入数据前的擦除工作 */
+            if (boot_flash_prepare_app_image(image_size) != BOOT_FLASH_STATUS_OK) {
+                /* 此时可能已经擦除了元数据，不能再尝试运行旧APP 直接软重启就好 */
+                (void)boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_FLASH_ERROR);
+                NVIC_SystemReset();
+            }
+            /* 擦除完成后才能告诉PC设备已准备好接收 DATA */
             if (boot_send_ack(g_decoded_frame.command, g_decoded_frame.sequence) != BOOT_REPLY_STATUS_OK) {
                 NVIC_SystemReset();
             }
@@ -448,11 +457,21 @@ noreturn void boot_run(void) {
     while (receiced_bytes != image_size) {
         boot_data_wait_status_t data_status = boot_wait_for_data(5000U, expected_seq, remainder_bytes, &last_data);
         if (data_status == BOOT_DATA_WAIT_STATUS_DUPLICATE) {
-            /* 发现重复包 继续等待下一包 */
+            /* 发现重复包 重新发送ACK 继续等待下一包 */
+            if (boot_send_ack(BOOT_PROTOCOL_COMMAND_DATA, last_data.sequence) != BOOT_REPLY_STATUS_OK) {
+                NVIC_SystemReset();
+            }
             continue;
         }
         if (data_status != BOOT_DATA_WAIT_STATUS_RECEIVED) {
             /* 等待超时或错误 */
+            NVIC_SystemReset();
+        }
+        /* 计算写入地址 */
+        const uintptr_t write_address = BOOT_APP_FLASH_START + receiced_bytes;
+        /* 写入并立即回读验证；失败后本次升级不能继续。 */
+        if (boot_flash_program_bytes(write_address, g_decoded_frame.payload, g_decoded_frame.payload_length) != BOOT_FLASH_STATUS_OK) {
+            boot_send_nack(g_decoded_frame.command, g_decoded_frame.sequence, BOOT_PROTOCOL_NACK_FLASH_ERROR);
             NVIC_SystemReset();
         }
         /* 记录上一包 */
@@ -460,17 +479,24 @@ noreturn void boot_run(void) {
         last_data.payload_length = g_decoded_frame.payload_length;
         memcpy(last_data.payload, g_decoded_frame.payload, last_data.payload_length);
         last_data.valid = true; // 用于表示是否已经接收到一包数据 因为第一包数据没有last_data
-        /* 只有新包才能推进接收进度。 */
+        /* 先更新状态，再发送 ACK，保证 ACK 发出时已经准备好接收下一包 */
         receiced_bytes += g_decoded_frame.payload_length;
         remainder_bytes = image_size - receiced_bytes;
         expected_seq++;
+        /* 发送ACK */
+        if (boot_send_ack(BOOT_PROTOCOL_COMMAND_DATA, last_data.sequence) != BOOT_REPLY_STATUS_OK) {
+            NVIC_SystemReset();
+        }
     }
     /* 等待END帧 */
     while (1) {
         boot_end_wait_status_t end_status = boot_wait_for_end(5000U, expected_seq, &last_data);
         if (end_status != BOOT_END_WAIT_STATUS_RECEIVED) {
             if (end_status == BOOT_END_WAIT_STATUS_DATA_DUPLICATE) {
-                /* 最后一包 DATA 原样重传，不推进状态，继续等待 END */
+                /* 最后一包已写入成功，只重新发送 DATA ACK。 */
+                if (boot_send_ack(BOOT_PROTOCOL_COMMAND_DATA, last_data.sequence) != BOOT_REPLY_STATUS_OK) {
+                    NVIC_SystemReset();
+                }
                 continue;
             }
             /* 等待超时或错误 */
@@ -478,8 +504,40 @@ noreturn void boot_run(void) {
         }
         /* 接收成功 */
         else {
-            while (1) {
+            /* APP CRC32 验证 */
+            boot_metadata_info_t candidate = {.image_size = image_size, .image_crc32 = image_crc32, .firmware_version = firmware_version};
+            if (boot_image_check_image(&candidate) != BOOT_IMAGE_STATUS_VALID) {
+                (void)boot_send_nack(BOOT_PROTOCOL_COMMAND_END, expected_seq, BOOT_PROTOCOL_NACK_IMAGE_ERROR);
+                NVIC_SystemReset();
             }
+            /* 检查APP向量表 */
+            boot_image_vector_table_t candidate_vector;
+            if (boot_image_check_vector_table(&candidate_vector) != BOOT_IMAGE_STATUS_VALID) {
+                (void)boot_send_nack(BOOT_PROTOCOL_COMMAND_END, expected_seq, BOOT_PROTOCOL_NACK_IMAGE_ERROR);
+                NVIC_SystemReset();
+            }
+            /* 获取appResetHandler函数的真实地址 (去掉thumb状态指示位) */
+            const uintptr_t reset_address = (uintptr_t)(candidate_vector.reset_handler & ~UINT32_C(1));
+            /* 检查ResetHandler在本次镜像范围内 */
+            if (reset_address - BOOT_APP_FLASH_START >= candidate.image_size) {
+                (void)boot_send_nack(BOOT_PROTOCOL_COMMAND_END, expected_seq, BOOT_PROTOCOL_NACK_IMAGE_ERROR);
+                NVIC_SystemReset();
+            }
+            /* 写入meta */
+            uint8_t record[BOOT_METADATA_RECORD_SIZE];
+            /* 先根据appinfo(镜像大小 镜像crc 固件版本)编码meta数据流 */
+            if (boot_metadata_encode(&candidate, BOOT_APP_FLASH_END - BOOT_APP_FLASH_START, record, sizeof(record)) != BOOT_METADATA_STATUS_OK) {
+                (void)boot_send_nack(BOOT_PROTOCOL_COMMAND_END, expected_seq, BOOT_PROTOCOL_NACK_INTERNAL_ERROR);
+                NVIC_SystemReset();
+            }
+            /* 将编码来的metadata写入sector11 也就是metadata分区 */
+            if (boot_flash_program_metadata_record(record, sizeof(record)) != BOOT_FLASH_STATUS_OK) {
+                (void)boot_send_nack(BOOT_PROTOCOL_COMMAND_END, expected_seq, BOOT_PROTOCOL_NACK_FLASH_ERROR);
+                NVIC_SystemReset();
+            }
+            /* 镜像和元数据均已写入并校验，通知 PC 升级完成 */
+            (void)boot_send_ack(BOOT_PROTOCOL_COMMAND_END, expected_seq);
+            NVIC_SystemReset();
         }
     }
 }
