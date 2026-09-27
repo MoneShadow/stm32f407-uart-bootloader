@@ -87,6 +87,7 @@ boot_flash_status_t boot_flash_erase_sector(uintptr_t address) {
     return BOOT_FLASH_STATUS_OK;
 }
 
+/* 向 APP Flash 写入一个 32 位 Word，并立即回读校验 address 必须按 4 字节对齐，并且目标 Word 必须处于擦除态 */
 boot_flash_status_t boot_flash_program_word(uintptr_t address, uint32_t data) {
     /* 检查地址是否合法 长度是否合法 是否4字节对齐 */
     if (!boot_flash_is_range_valid(address, sizeof(data)) || (address & (sizeof(uint32_t) - 1U)) != 0U) {
@@ -266,5 +267,26 @@ boot_flash_status_t boot_flash_program_bytes(uintptr_t address, const uint8_t *d
         }
     }
     /* 完工 */
+    return BOOT_FLASH_STATUS_OK;
+}
+
+/* 根据固件大小擦除指定的sector */
+boot_flash_status_t boot_flash_erase_app_image(size_t image_size) {
+    /* 检查app起始地址加上固件大小是否在app分区的合法范围内 */
+    if (!boot_flash_is_range_valid(BOOT_APP_FLASH_START, image_size)) {
+        return BOOT_FLASH_STATUS_INVALID_ARGUMENT;
+    }
+    /* 计算镜像的结束地址 */
+    uintptr_t image_end = BOOT_APP_FLASH_START + image_size;
+    /* 擦除小于image_end的sector */
+    /* 无论app固件多小，sector2都是一定会被擦除的 所以这里使用先擦除后判断的逻辑 */
+    uint8_t i = 0;
+    do {
+        boot_flash_status_t state = boot_flash_erase_sector(g_app_flash_sectors[i].end_address - 4U);
+        if (state != BOOT_FLASH_STATUS_OK) {
+            return state;
+        }
+        i++;
+    } while (g_app_flash_sectors[i - 1U].end_address < image_end);
     return BOOT_FLASH_STATUS_OK;
 }
