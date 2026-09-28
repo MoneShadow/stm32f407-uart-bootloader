@@ -142,6 +142,32 @@ arm-none-eabi-objcopy -O binary \
 python3 -m unittest discover -s tests -p 'test_upgrade_protocol.py' -v
 ```
 
+## 操作演示
+
+### elf转bin
+
+<p align="center">
+  <img src="assets/demos/elf转bin.gif"
+       alt="elf转bin"
+       width="800">
+</p>
+
+### 下载升级来自其他位置的bin
+
+<p align="center">
+  <img src="assets/demos/下载升级来自其他位置的bin.gif"
+       alt="下载升级来自其他位置的bin"
+       width="800">
+</p>
+
+### 升级调试
+
+<p align="center">
+  <img src="assets/demos/升级调试.gif"
+       alt="升级调试"
+       width="800">
+</p>
+
 ## 失败与恢复
 
 | 现象 | 板端状态和处理方式 |
