@@ -56,7 +56,8 @@ ENTRY(Reset_Handler)
  * V1 internal Flash partition (end addresses are exclusive):
  *
  *   Bootloader  0x08000000 - 0x08008000  (32 KiB, Sector 0-1)
- *   Application 0x08008000 - 0x08100000  (992 KiB, Sector 2-11)
+ *   Application 0x08008000 - 0x080E0000  (864 KiB, Sector 2-10)
+ *   Metadata    0x080E0000 - 0x08100000  (128 KiB, Sector 11)
  */
 BOOT_FLASH_ORIGIN = 0x08000000;
 BOOT_FLASH_LENGTH = 32K;
