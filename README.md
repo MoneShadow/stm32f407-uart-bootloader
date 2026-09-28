@@ -6,6 +6,18 @@
 
 主要代码入口：`Core/Src/main.c` 调用 `boot/boot.c` 的升级状态机；`boot/boot_protocol.c` 负责编解码帧，`boot/transport/` 负责 UART 收发，`boot/boot_flash.c` 负责擦写，`boot/boot_metadata.c` 和 `boot/boot_image.c` 负责启动前校验，`boot/boot_jump.c` 负责交接到 APP。PC 工具位于 `tools/upgrade.py`，对应协议测试位于 `tests/test_upgrade_protocol.py`。
 
+## 系统架构
+
+下图展示 PC 升级工具、Bootloader 软件模块与 MCU 内部 Flash 分区之间的静态关系；具体的上电判断和升级时序见下一节的流程图。
+
+<p align="center">
+  <img src="assets/bootloader-architecture.png"
+       alt="STM32F407 UART Bootloader 系统架构图"
+       width="950">
+</p>
+
+- [系统架构图 Draw.io 可编辑源文件](assets/bootloader-architecture.drawio)
+
 ## Bootloader 流程
 
 下图展示 Bootloader 从上电检查 APP、等待升级，到校验镜像、提交元数据并复位的主流程。

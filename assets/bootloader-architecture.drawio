@@ -1,0 +1,135 @@
+<mxfile host="app.diagrams.net" modified="2026-09-28T11:10:00.000Z" agent="Codex" version="31.5.3" type="device">
+  <diagram id="bootloader-architecture" name="系统架构">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#ffffff">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="pc-group" value="PC 上位机" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingTop=12;spacingLeft=14;fontStyle=1;fontSize=18;fillColor=#f5f9ff;strokeColor=#7aa7d9;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="50" y="30" width="1500" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="mcu-group" value="STM32F407VGT6" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingTop=12;spacingLeft=14;fontStyle=1;fontSize=18;fillColor=#fbfcfd;strokeColor=#64748b;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="50" y="250" width="1500" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="boot-group" value="Bootloader 软件" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingTop=12;spacingLeft=14;fontStyle=1;fontSize=17;fillColor=#f4fbf1;strokeColor=#78a96c;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="90" y="300" width="1420" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="memory-group" value="内部 Flash 布局（连续地址空间）" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingTop=12;spacingLeft=14;fontStyle=1;fontSize=17;fillColor=#fffaf0;strokeColor=#d4a14a;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="90" y="750" width="1420" height="170" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="bin" value="&lt;b&gt;APP 原始 BIN&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f3ff;strokeColor=#2f80ed;strokeWidth=2;fontColor=#17324d;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="150" y="100" width="260" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="precheck" value="&lt;b&gt;镜像预检&lt;/b&gt;&lt;br&gt;大小 · MSP · ResetHandler · CRC32" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f3ff;strokeColor=#2f80ed;strokeWidth=2;fontColor=#17324d;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="570" y="90" width="360" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="upgrade-tool" value="&lt;b&gt;Python 升级工具&lt;/b&gt;&lt;br&gt;tools/upgrade.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f3ff;strokeColor=#2f80ed;strokeWidth=2;fontColor=#17324d;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="90" width="310" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uart" value="&lt;b&gt;UART 传输层&lt;/b&gt;&lt;br&gt;字节收发 · 帧接收" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef8ec;strokeColor=#4c9a42;strokeWidth=2;fontColor=#17351a;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="170" y="360" width="260" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="protocol" value="&lt;b&gt;协议层&lt;/b&gt;&lt;br&gt;编解码 · CRC16 · 序号" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef8ec;strokeColor=#4c9a42;strokeWidth=2;fontColor=#17351a;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="570" y="360" width="300" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="state" value="&lt;b&gt;升级状态机&lt;/b&gt;&lt;br&gt;boot_run()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dff1da;strokeColor=#3c8734;strokeWidth=2;fontColor=#17351a;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="360" width="260" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="flash" value="&lt;b&gt;Flash 驱动&lt;/b&gt;&lt;br&gt;擦除 · 编程 · 回读验证" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef8ec;strokeColor=#4c9a42;strokeWidth=2;fontColor=#17351a;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="150" y="550" width="260" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="image" value="&lt;b&gt;镜像校验&lt;/b&gt;&lt;br&gt;CRC32 · 向量表 · ResetHandler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef8ec;strokeColor=#4c9a42;strokeWidth=2;fontColor=#17351a;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="470" y="550" width="280" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="jump" value="&lt;b&gt;APP 跳转&lt;/b&gt;&lt;br&gt;VTOR · MSP · ResetHandler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef8ec;strokeColor=#4c9a42;strokeWidth=2;fontColor=#17351a;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="810" y="550" width="260" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="metadata" value="&lt;b&gt;元数据管理&lt;/b&gt;&lt;br&gt;编码 · 校验 · 提交标志" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef8ec;strokeColor=#4c9a42;strokeWidth=2;fontColor=#17351a;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="550" width="260" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="boot-partition" value="&lt;b&gt;Bootloader&lt;/b&gt;&lt;br&gt;0x08000000–0x08008000&lt;br&gt;Sector 0–1 · 32 KiB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4df;strokeColor=#d99020;strokeWidth=2;fontColor=#4a3210;fontSize=15;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="140" y="805" width="340" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="app-partition" value="&lt;b&gt;APP&lt;/b&gt;&lt;br&gt;0x08008000–0x080E0000&lt;br&gt;Sector 2–10 · 864 KiB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4df;strokeColor=#d99020;strokeWidth=2;fontColor=#4a3210;fontSize=15;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="560" y="805" width="520" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="metadata-partition" value="&lt;b&gt;Metadata&lt;/b&gt;&lt;br&gt;0x080E0000–0x08100000&lt;br&gt;Sector 11 · 128 KiB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4df;strokeColor=#d99020;strokeWidth=2;fontColor=#4a3210;fontSize=15;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="805" width="300" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="edge-bin-check" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2f80ed;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="bin" target="precheck">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge-check-tool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2f80ed;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="precheck" target="upgrade-tool">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge-tool-uart" value="USART1 · 115200 8N1&lt;br&gt;HELLO / START / DATA / END · ACK / NACK" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#52677d;strokeWidth=2;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=14;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="upgrade-tool" target="uart">
+          <mxGeometry x="0" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1245" y="235"/>
+              <mxPoint x="300" y="235"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-uart-protocol" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4c9a42;strokeWidth=2;startArrow=block;startFill=1;endArrow=block;endFill=1;" edge="1" parent="1" source="uart" target="protocol">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge-protocol-state" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4c9a42;strokeWidth=2;startArrow=block;startFill=1;endArrow=block;endFill=1;" edge="1" parent="1" source="protocol" target="state">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="edge-state-flash" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4c9a42;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="state" target="flash">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1180" y="500"/><mxPoint x="280" y="500"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-state-image" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4c9a42;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="state" target="image">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1180" y="500"/><mxPoint x="610" y="500"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-state-jump" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4c9a42;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="state" target="jump">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1180" y="500"/><mxPoint x="940" y="500"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-state-metadata" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4c9a42;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="state" target="metadata">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1180" y="500"/><mxPoint x="1260" y="500"/></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-flash-app" value="擦写" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#708090;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.18;entryY=0;" edge="1" parent="1" source="flash" target="app-partition">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="280" y="700"/><mxPoint x="654" y="700"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-image-app" value="读取并校验" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#708090;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.45;entryY=0;" edge="1" parent="1" source="image" target="app-partition">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="610" y="715"/><mxPoint x="794" y="715"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-jump-app" value="移交控制权" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#708090;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1" parent="1" source="jump" target="app-partition">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="940" y="730"/><mxPoint x="950" y="730"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-metadata-partition" value="读取 / 提交" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#708090;strokeWidth=2;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="metadata" target="metadata-partition">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1260" y="715"/><mxPoint x="1310" y="715"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-boot-app-partition" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#d99020;strokeWidth=3;endArrow=none;" edge="1" parent="1" source="boot-partition" target="app-partition">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge-app-meta-partition" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#d99020;strokeWidth=3;endArrow=none;" edge="1" parent="1" source="app-partition" target="metadata-partition">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
