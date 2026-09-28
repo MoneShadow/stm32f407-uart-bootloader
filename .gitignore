@@ -27,6 +27,7 @@
 *.axf
 *.map
 *.bin
+!examples/app_led.bin
 *.hex
 *.srec
 *.lst

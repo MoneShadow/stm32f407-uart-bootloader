@@ -89,30 +89,32 @@ A5 5A | VERSION | COMMAND | SEQUENCE | LENGTH | PAYLOAD | CRC16
 
 ## 构建与使用 PC 脚本
 
-需要 CMake、Ninja、`arm-none-eabi` 工具链、Python 3.10+，以及真实串口操作所需的 `pyserial`。下面命令假设本仓库在 `/home/mone/Documents/bootloader`，APP 工程在 `/home/mone/Documents/app_led`；换机器时改成实际路径。仅运行协议单元测试或本地 BIN 检查，不需要 `pyserial`。
+需要 CMake、Ninja、`arm-none-eabi` 工具链、Python 3.10+，以及真实串口操作所需的 `pyserial`。除非特别说明，下面的命令都从本仓库根目录执行，因此不依赖仓库在电脑上的具体位置。仅运行协议单元测试或本地 BIN 检查，不需要 `pyserial`。
 
 ```bash
-cd /home/mone/Documents/bootloader
 cmake --preset Debug
 cmake --build --preset Debug
 python3 -m venv .venv
 .venv/bin/python -m pip install pyserial
 ```
 
-APP 是独立工程，先构建 APP，再把 ELF 转成**原始 BIN**。不要把 ELF 文件直接交给升级脚本：
+仓库中的 `examples/app_led.bin` 是供测试升级链路使用的示例固件：目标芯片为 STM32F407VGT6，链接地址为 `0x08008000`，运行后每秒翻转一次 PB2。该文件大小为 6000 字节，CRC32/IEEE 为 `0x7B454728`，可以直接用于下面的预检和实板升级命令。
+
+若要升级自己的 APP，需要先在独立的 APP 工程中构建，再把 ELF 转成**原始 BIN**。不要把 ELF 文件直接交给升级脚本。下面假设 APP 工程与本仓库位于同一父目录；如果不是，只需修改 `APP_BUILD_DIR`：
 
 ```bash
-cmake --build /home/mone/Documents/app_led/build/Debug
+APP_BUILD_DIR=../app_led/build/Debug
+cmake --build "$APP_BUILD_DIR"
 arm-none-eabi-objcopy -O binary \
-  /home/mone/Documents/app_led/build/Debug/app_led.elf \
-  /home/mone/Documents/app_led/build/Debug/app_led.bin
+  "$APP_BUILD_DIR/app_led.elf" \
+  "$APP_BUILD_DIR/app_led.bin"
 ```
 
 在本仓库根目录运行以下命令。先做不接触板子的本地预检，脚本会检查大小、初始 MSP、Thumb 位、ResetHandler 范围并计算 CRC32：
 
 ```bash
 .venv/bin/python tools/upgrade.py \
-  --image /home/mone/Documents/app_led/build/Debug/app_led.bin \
+  --image examples/app_led.bin \
   --firmware-version 1
 ```
 
@@ -127,7 +129,7 @@ arm-none-eabi-objcopy -O binary \
 ```bash
 .venv/bin/python tools/upgrade.py \
   --port /dev/ttyUSB0 \
-  --image /home/mone/Documents/app_led/build/Debug/app_led.bin \
+  --image examples/app_led.bin \
   --firmware-version 1 \
   --upgrade
 ```
