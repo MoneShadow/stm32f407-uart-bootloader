@@ -6,6 +6,21 @@
 
 主要代码入口：`Core/Src/main.c` 调用 `boot/boot.c` 的升级状态机；`boot/boot_protocol.c` 负责编解码帧，`boot/transport/` 负责 UART 收发，`boot/boot_flash.c` 负责擦写，`boot/boot_metadata.c` 和 `boot/boot_image.c` 负责启动前校验，`boot/boot_jump.c` 负责交接到 APP。PC 工具位于 `tools/upgrade.py`，对应协议测试位于 `tests/test_upgrade_protocol.py`。
 
+## Bootloader 流程
+
+下图展示 Bootloader 从上电检查 APP、等待升级，到校验镜像、提交元数据并复位的主流程。
+
+<p align="center">
+  <img src="assets/bootloader-main-flow.png"
+       alt="STM32F407 Bootloader 主流程图"
+       width="650">
+</p>
+
+更详细的函数内部流程和调用关系：
+
+- [Bootloader 实现流程总览](assets/bootloader-implementation-map.png)
+- [Draw.io 可编辑源文件](assets/bootloader-flow.drawio)
+
 ## 硬件与 Flash 分区
 
 USART1 使用 `115200 8N1`，PA9 为板端 TX、PA10 为板端 RX。使用 **3.3 V TTL** 串口，USB-UART 的 TX 接 PA10、RX 接 PA9，并共地；不要把 RS-232 电平直接接到 MCU。下面的 `/dev/ttyUSB0` 只是 Linux 示例，实际端口以本机为准。运行脚本前关闭其他占用该端口的串口工具。
